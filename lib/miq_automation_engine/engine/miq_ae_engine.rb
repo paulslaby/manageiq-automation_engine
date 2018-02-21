@@ -298,16 +298,18 @@ module MiqAeEngine
     raise "User object not passed in" unless user_obj.kind_of?(User)
     uri = create_automation_object(uri, attr, options) if attr
     options[:uri] = uri
-    MiqAeWorkspaceRuntime.instantiate(uri, user_obj, :readonly => readonly).tap do
+    MiqAeWorkspaceRuntime.instantiate(uri, user_obj, :readonly => readonly).tap do |ws|
       $miq_ae_logger.debug { ws.to_expanded_xml }
     end
   end
 
   def self.ae_user_object(options = {})
     raise "user_id not specified in Automation request" if options[:user_id].blank?
-    # raise "group_id not specified in Automation request" if options[:miq_group_id].blank?
+    # raise "miq_group_id not specified in Automation request" if options[:miq_group_id].blank?
+
     User.find_by!(:id => options[:user_id]).tap do |obj|
-      # obj.current_group = MiqGroup.find_by!(:id => options[:miq_group_id])
+      obj.current_group = MiqGroup.find_by!(:id => options[:miq_group_id]) unless options[:miq_group_id] == obj.current_group.id
+      $miq_ae_logger.info("User [#{obj.userid}] with current group ID [#{obj.current_group.id}] name [#{obj.current_group.description}]")
     end
   end
 end

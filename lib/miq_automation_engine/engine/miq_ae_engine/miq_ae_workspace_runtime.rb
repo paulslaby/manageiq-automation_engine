@@ -5,6 +5,8 @@ module MiqAeEngine
     attr_accessor :datastore_cache, :persist_state_hash, :current_state_info
     attr_accessor :ae_user
     include MiqAeStateInfo
+    include MiqAeSerializeWorkspace
+    include MiqAeDeserializeWorkspace
 
     attr_reader :nodes
 
@@ -43,8 +45,8 @@ module MiqAeEngine
     def self.instantiate(uri, user, attrs = {})
       User.current_user = user
       workspace = MiqAeWorkspaceRuntime.new(attrs)
-      workspace.instantiate(uri, user, nil)
       self.current = workspace
+      workspace.instantiate(uri, user, nil)
       workspace
     rescue MiqAeException
     ensure

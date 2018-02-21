@@ -11,7 +11,7 @@ describe "MultipleStateMachineSteps" do
     @common_state_method = 'common_state_method'
     @domain              = 'SPEC_DOMAIN'
     @namespace           = 'NS1'
-    @max_retries         = 3
+    @max_retries         = 2
     @state_class1        = 'SM1'
     @state_class2        = 'SM2'
     @state_class3        = 'SM3'
@@ -32,48 +32,6 @@ describe "MultipleStateMachineSteps" do
                         :automate_message => 'create'}
     allow(MiqServer).to receive(:my_zone).and_return('default')
     allow(MiqServer).to receive(:my_server).and_return(@miq_server)
-    clear_domain
-    setup_model
-  end
-
-  def perpetual_retry_script
-    <<-'RUBY'
-      $evm.root['ae_result'] = 'retry'
-    RUBY
-  end
-
-  def method_script_state_var
-    <<-'RUBY'
-      root   = $evm.object("/")
-      if $evm.state_var_exist?(:gravy) && $evm.get_state_var('gravy') == 'train'
-        root['finished'] = true
-        $evm.set_state_var(:three, 3)
-        $evm.set_state_var('one', $evm.get_state_var(:one) + 1)
-        status = 'ok'
-      else
-        $evm.set_state_var(:one, 0)
-        $evm.set_state_var(:two, 2)
-        $evm.set_state_var('gravy', 'train')
-        status = 'retry'
-      end
-
-      case status
-        when 'retry'
-          root['ae_result']         = 'retry'
-          root['ae_retry_interval'] = '1.minute'
-        when 'ok'
-          root['ae_result'] = 'ok'
-        end
-      exit MIQ_OK
-    RUBY
-  end
-
-  def setup_model(method_script)
-    dom = FactoryGirl.create(:miq_ae_domain, :enabled => true, :name => @domain)
-    ns  = FactoryGirl.create(:miq_ae_namespace, :parent_id => dom.id, :name => @namespace)
-    @ns_fqname = ns.fqname
-    create_retry_class(:namespace => @ns_fqname, :name => @retry_class, :method_script => method_script)
-    create_state_class(:namespace => @ns_fqname, :name => @state_class)
     clear_domain
     setup_model
   end
@@ -103,6 +61,8 @@ describe "MultipleStateMachineSteps" do
       steps_executed = $evm.root[step_name].to_a
       steps_executed << $evm.root['ae_state']
       $evm.root[step_name] = steps_executed
+      max_retries = $evm.root['ae_state'].split('_').last.to_i
+      $evm.root['ae_result'] = 'error' unless $evm.root['ae_state_max_retries'] == max_retries
       $evm.root['ae_result'] = inputs['ae_result'] if %w(retry error).exclude?($evm.root['ae_result'])
       $evm.root['ae_result'] = inputs['ae_result'] if inputs['ae_result'] == 'continue'
       $evm.root['ae_next_state']  = inputs['ae_next_state'] unless inputs['ae_next_state'].blank?
@@ -154,11 +114,11 @@ describe "MultipleStateMachineSteps" do
     all_steps = {'on_entry' => "common_state_method",
                  'on_exit'  => "common_state_method",
                  'on_error' => "common_state_method"}
-    ae_fields = {"#{stem}_1" => {:aetype => 'state', :datatype => 'string', :priority => 1},
+    ae_fields = {"#{stem}_1" => {:aetype => 'state', :datatype => 'string', :priority => 1, :max_retries => 1},
                  "#{stem}_2" => {:aetype => 'state', :datatype => 'string', :priority => 2,
                                  :max_retries => @max_retries, :message  => 'create'},
-                 "#{stem}_3" => {:aetype => 'state', :datatype => 'string', :priority => 3},
-                 "#{stem}_4" => {:aetype => 'state', :datatype => 'string', :priority => 4}}
+                 "#{stem}_3" => {:aetype => 'state', :datatype => 'string', :priority => 3, :max_retries => 3},
+                 "#{stem}_4" => {:aetype => 'state', :datatype => 'string', :priority => 4, :max_retries => 4}}
     state1_value = "/#{@domain}/#{@namespace}/#{@method_class}/#{@instance1}"
     state2_value = "/#{@domain}/#{@namespace}/#{@method_class}/#{@instance2}"
     state3_value = "/#{@domain}/#{@namespace}/#{@method_class}/#{@instance3}"
