@@ -15,6 +15,10 @@ module MiqAeServiceMiqRequestMixin
     object_send('user_message=', msg)
   end
 
+  def user_long_message=(msg)
+    object_send('user_long_message=', msg)
+  end
+
   def set_option(key, value)
     ar_method do
       @object.options[key] = value
